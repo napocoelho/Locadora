@@ -1,4 +1,4 @@
-Locadora é um pequeno projeto de teste, feito utilizando
+LOCADORA é um pequeno projeto de teste, feito utilizando
 as tecnologias C#, Blazor, ASPNET.Core, WebApi e MySql.
 
 
