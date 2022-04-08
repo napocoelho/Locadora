@@ -67,7 +67,7 @@ void ConfigureServices(IServiceCollection services)
     //IEnumerable<Cliente> clientes = conn.Query<Cliente>($"select * from cliente");
 
     
-
+        
 
     builder.Services.AddDbContext<ClienteContext>(context => context.UseMySQL(connString)); //, ServerVersion.AutoDetect(connString)));
     builder.Services.AddDbContext<FilmeContext>(context => context.UseMySQL(connString)); //, ServerVersion.AutoDetect(connString)));
