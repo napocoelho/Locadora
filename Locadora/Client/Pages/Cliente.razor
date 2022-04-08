@@ -1,0 +1,321 @@
+﻿@page "/cliente"
+
+@using Locadora.Client.Utils
+@using Locadora.Shared.DTOs
+@using Locadora.Shared.Utils
+
+@inject HttpClient Http
+
+
+
+<h3>Cliente</h3>
+<hr />
+
+
+
+@if (_status == FormStatus.Processando)
+{
+    <p>
+        Carregando...
+    </p>
+}
+else if (_status == FormStatus.Lista)
+{
+    @*table-secondary table-hover table-striped table-sm table-bordered table-responsive-sm*@
+
+    <table class="table  table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <td>Id</td>
+                <td>Nome</td>
+                <td>CPF</td>
+                <td>Nascimento</td>
+                <td></td>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (ClienteDto cliente in _clientes ?? Enumerable.Empty<ClienteDto>())
+            {
+                <tr>
+                    <td>@cliente.Id</td>
+                    <td>@cliente.Nome</td>
+                    <td>@cliente.CPF</td>
+                    <td>@cliente.DataNascimento</td>
+                    <td>
+                        <button class="btn btn-primary" @onclick=@(()=>AtivarAlteracao(@cliente.Id))>Alterar</button>
+                        <button class="btn btn-primary" @onclick=@(()=>Excluir(cliente.Id))>Excluir</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+            <button class="btn btn-primary" @onclick=@AtivarInclusao>Incluir</button>
+            <button class="btn btn-primary" @onclick=@Pesquisar>Pesquisar</button>
+        </tfoot>
+    </table>
+}
+else if (_status == FormStatus.Inclusão
+     || _status == FormStatus.Alteração)
+{
+    <EditForm Model="@_clienteSelecionado" OnValidSubmit=@Salvar>
+
+
+        <div class="container">
+
+            @if (_status == FormStatus.Alteração)
+            {
+                <div class="row">
+                    <div class="col-2">
+                        <label for="Id">Id: </label>
+                    </div>
+
+                    <div class="col-sm">
+                        <input id="id" disabled=@true @bind-value=@_clienteSelecionado.Id />
+                    </div>
+                </div>
+            }
+
+            <div class="row">
+                <div class="col-2">
+                    <label for="Nome">Nome:</label>
+                </div>
+
+                <div class="col-sm">
+                    <InputText id="nome" @bind-Value=@_clienteSelecionado.Nome DisplayName="Nome" />
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-2">
+                    <label for="CPF">CPF:</label>
+                </div>
+
+                <div class="col-sm">
+                    <InputText id="cpf" @bind-Value=@_clienteSelecionado.CPF />
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-2">
+                    <label for="Nascimento">Nascimento:</label>
+                </div>
+
+                <div class="col-sm">
+                    <InputDate id="datanascimento" @bind-Value=@_clienteSelecionado.DataNascimento />
+                </div>
+            </div>
+
+            <br />
+
+            <div class="row justify-content-start">
+                <div class="col-1">
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+
+                <div class="col-4">
+                    <button type="button" class="btn btn-primary" @onclick=@CancelarInclusaoOuAlteracao>Cancelar</button>
+                </div>
+            </div>
+
+
+        </div>
+
+    </EditForm>
+}
+
+
+<!-- Exibe mensagens de erro -->
+@foreach (string mensagem in MensagensDeErro ?? Enumerable.Empty<string>())
+{
+    <div class="alert alert-danger" role="alert">
+        @mensagem
+    </div>
+}
+
+
+@code
+{
+    enum FormStatus
+    {
+        Inclusão,
+        Alteração,
+        Processando,
+        Lista
+    }
+
+    List<ClienteDto>? _clientes;
+    ClienteDto? _clienteSelecionado;
+    FormStatus _status = FormStatus.Processando;
+    List<string> MensagensDeErro { get; init; } = new List<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        try
+        {
+            _clientes = await CarregarTodosClientes();
+        }
+        catch (Exception ex)
+        {
+            MensagensDeErro.Add(ex.Message);
+        }
+
+        _status = FormStatus.Lista;
+    }
+
+    void AtivarInclusao()
+    {
+        MensagensDeErro.Clear();
+
+        _clienteSelecionado = new ClienteDto() { Id = null, Nome = "", CPF = string.Empty, DataNascimento = DateTime.Parse("01/01/2010") };
+        _status = FormStatus.Inclusão;
+    }
+
+    void AtivarAlteracao(int? idCliente)
+    {
+        MensagensDeErro.Clear();
+
+        if (idCliente is null)
+            return;
+
+
+        ClienteDto? clienteAlteracao = _clientes?.FirstOrDefault(x => x.Id == idCliente);
+
+
+        if (clienteAlteracao is not null)
+        {
+            _clienteSelecionado = new ClienteDto();
+            InstanceCopy.Copy(clienteAlteracao, _clienteSelecionado);
+
+            _status = FormStatus.Alteração;
+        }
+
+    }
+
+    void CancelarInclusaoOuAlteracao()
+    {
+        MensagensDeErro.Clear();
+
+        _status = FormStatus.Lista;
+        _clienteSelecionado = null;
+    }
+
+    async Task Salvar()
+    {
+        MensagensDeErro.Clear();
+
+        if (_status == FormStatus.Inclusão && _clienteSelecionado is not null)
+        {
+            await Incluir();
+        }
+        else if (_status == FormStatus.Alteração && _clienteSelecionado is not null)
+        {
+            await Alterar();
+        }
+    }
+
+    async Task Incluir()
+    {
+        try
+        {
+            HttpResponseMessage response = await Http.PostAsJsonAsync<ClienteDto>("api/cliente", _clienteSelecionado);
+            Result<ClienteDto>? result = response?.Content?.ReadFromJsonAsync<Result<ClienteDto>>().Result;
+
+            if (result?.Success ?? false)
+            {
+                if (result.HasValue)
+                {
+                    _clientes?.Add(result.Value);
+                }
+                _status = FormStatus.Lista;
+                _clienteSelecionado = null;
+            }
+            else
+            {
+                MensagensDeErro.Add(result?.Errors?.FirstOrDefault());
+            }
+        }
+        catch (Exception ex)
+        {
+            MensagensDeErro.Add(ex.Message);
+        }
+    }
+
+    async Task Alterar()
+    {
+        try
+        {
+            HttpResponseMessage response = await Http.PutAsJsonAsync<ClienteDto>($"api/cliente/{_clienteSelecionado.Id}", _clienteSelecionado);
+            Result<ClienteDto>? result = response?.Content?.ReadFromJsonAsync<Result<ClienteDto>>().Result;
+
+
+            if (result?.Success ?? false)
+            {
+                if (result.HasValue)
+                {
+                    //int indexOfSelecionado = _clientes.IndexOf(_clienteSelecionado);
+                    //_clientes.RemoveAt(indexOfSelecionado);
+                    //_clientes.Insert(indexOfSelecionado, result.Value);
+
+                    _clientes.Replace(result.Value, x => x.Id == _clienteSelecionado.Id);
+                }
+
+                _status = FormStatus.Lista;
+                _clienteSelecionado = null;
+            }
+            else
+            {
+                MensagensDeErro.AddRange(result?.Errors);
+            }
+        }
+        catch (Exception ex)
+        {
+            MensagensDeErro.Add(ex.Message);
+        }
+    }
+
+    async Task Excluir(int? idCliente)
+    {
+        MensagensDeErro.Clear();
+
+        try
+        {
+            HttpResponseMessage response = await Http.DeleteAsync($"api/cliente/{idCliente}");
+            Result<ClienteDto>? result = response?.Content?.ReadFromJsonAsync<Result<ClienteDto>>().Result;
+
+            if (result?.Success ?? false)
+            {
+                if (result.HasValue)
+                {
+                    _clientes.Remove(x => x.Id == result.Value.Id);
+                }
+
+                _status = FormStatus.Lista;
+                _clienteSelecionado = null;
+            }
+            else
+            {
+                MensagensDeErro.Add(result?.Errors?.FirstOrDefault());
+            }
+        }
+        catch (Exception ex)
+        {
+            MensagensDeErro.Add(ex.Message);
+        }
+    }
+
+    async Task Pesquisar()
+    {
+        MensagensDeErro.Clear();
+
+        _status = FormStatus.Processando;
+        _clientes = await CarregarTodosClientes();
+        _status = FormStatus.Lista;
+    }
+
+    async Task<List<ClienteDto>?> CarregarTodosClientes()
+    {
+        return (await Http.GetFromJsonAsync<ClienteDto[]?>("api/cliente")).ToList();
+    }
+}

@@ -1,0 +1,442 @@
+﻿@page "/locacao"
+
+@using Locadora.Client.Utils
+@using Locadora.Shared.DTOs
+@using Locadora.Shared.Utils
+
+@inject HttpClient Http
+
+
+
+<h3>Locacao</h3>
+<hr />
+
+
+
+
+@if (_status == FormStatus.Processando)
+{
+    <p>
+        Carregando...
+    </p>
+}
+else if (_status == FormStatus.Lista)
+{
+    @*table-secondary table-hover table-striped table-sm table-bordered table-responsive-sm*@
+
+
+
+
+    <table class="table  table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <td>Id</td>
+                <td>Título</td>
+                <td>Cliente</td>
+                <td>Locação</td>
+                <td>Devolução</td>
+                <td></td>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (LocacaoDto locacao in _locacoes ?? Enumerable.Empty<LocacaoDto>())
+            {
+                <tr>
+                    <td>@locacao.Id</td>
+                    <td>@locacao.Filme?.Titulo</td>
+                    <td>@locacao.Cliente?.Nome</td>
+                    <td>@locacao.DataLocacao.ToShortDateString()</td>
+                    <td>@locacao.DataDevolucao?.ToShortDateString()</td>
+                    <td>
+                        <button class="btn btn-primary" @onclick=@(()=>AtivarAlteracao(locacao.Id))>Alterar</button>
+                        &nbsp;
+                        <button class="btn btn-primary" @onclick=@(()=>Excluir(locacao.Id))>Excluir</button>
+
+                        &nbsp;
+
+                        @if (locacao.DataDevolucao is null)
+                        {
+                            <button class="btn btn-primary" @onclick=@(()=>Devolver(locacao.IdFilme))>Devolver</button>
+                        }
+
+                    </td>
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+        </tfoot>
+    </table>
+
+    <button class="btn btn-primary" @onclick=@AtivarInclusao>Incluir</button>
+    <button class="btn btn-primary" @onclick=@Pesquisar>Pesquisar</button>
+
+    <br />
+
+    <hr />
+
+}
+else if (_status == FormStatus.Inclusão
+     || _status == FormStatus.Alteração)
+{
+    <EditForm Model="@_locacaoSelecionada" OnValidSubmit=@Salvar>
+
+
+        <div class="container">
+
+            @if (_status == FormStatus.Alteração)
+            {
+                <div class="row">
+                    <div class="col-2">
+                        <label for="Id">Id: </label>
+                    </div>
+
+                    <div class="col-sm">
+                        <input id="id" disabled=@true @bind-value=@_locacaoSelecionada.Id />
+                    </div>
+                </div>
+            }
+
+            <div class="row">
+                <div class="col-2">
+                    <label for="Filme">Filme:</label>
+                </div>
+
+                <div class="col-sm">
+                    <InputSelect id="filme" DisplayName="Filme" @bind-Value=@_locacaoSelecionada.IdFilme>
+                        <option value="">Select classification ...</option>
+                        @foreach (FilmeDto filme in _filmes ?? Enumerable.Empty<FilmeDto>())
+                        {
+                        <option value=@filme.Id>@filme.Titulo</option>
+                        }
+
+                </InputSelect>
+            </div>
+        </div>
+
+
+        <div class="row">
+            <div class="col-2">
+                <label for="Classificacao">Classificação:</label>
+            </div>
+
+            <div class="col-sm">
+                <InputSelect id="cliente" DisplayName="Cliente" @bind-Value=@_locacaoSelecionada.IdCliente>
+                    <option value="">Select classification ...</option>
+
+                    @foreach (ClienteDto cliente in _clientes ?? Enumerable.Empty<ClienteDto>())
+                        {
+                        <option value=@cliente.Id>@cliente.Nome</option>
+                        }
+                </InputSelect>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-2">
+                <label for="dataLocacao">Data locação:</label>
+            </div>
+
+            <div class="col-sm">
+                <InputDate id="dataLocacao" @bind-Value=@_locacaoSelecionada.DataLocacao />
+                @*<input id="lancamento" disabled=@true type="checkbox" checked=@_LocacaoSelecionado.Lancamento data-toggle="toggle">*@
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-2">
+                <label for="dataDevolucao">Data devolução:</label>
+            </div>
+
+            <div class="col-sm">
+                <InputDate id="dataDevolucao" @bind-Value=@_locacaoSelecionada.DataDevolucao />
+            </div>
+        </div>
+
+        <br />
+
+        <div class="row justify-content-start">
+            <div class="col-1">
+                <button type="submit" class="btn btn-primary">Salvar</button>
+            </div>
+
+            <div class="col-4">
+                <button type="button" class="btn btn-primary" @onclick=@CancelarInclusaoOuAlteracao>Cancelar</button>
+            </div>
+        </div>
+
+    </div>
+
+
+
+</EditForm>
+
+
+    <hr />
+
+
+}
+
+
+
+<!-- Exibe mensagens de erro -->
+@if (MensagensDeErro is not null && MensagensDeErro.Any())
+{
+    @foreach (string mensagem in MensagensDeErro ?? Enumerable.Empty<string>())
+    {
+        <div class="alert alert-danger" role="alert">
+            @mensagem
+        </div>
+    }
+
+    <hr />
+}
+
+
+@code
+{
+    enum FormStatus
+    {
+        Inclusão,
+        Alteração,
+        Processando,
+        Lista
+    }
+
+    List<LocacaoDto>? _locacoes = null;
+    List<LocacaoDto>? _locacoesFiltradas = null;
+    List<FilmeDto>? _filmes = null;
+    List<ClienteDto>? _clientes = null;
+    LocacaoDto? _locacaoSelecionada;
+    FormStatus _status = FormStatus.Processando;
+    List<string> MensagensDeErro { get; init; } = new List<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        try
+        {
+            _locacoes = await CarregarTodasLocacoes();
+
+        }
+        catch (Exception ex)
+        {
+            MensagensDeErro.Add(ex.Message);
+        }
+
+        _status = FormStatus.Lista;
+    }
+
+    async Task AtivarInclusao()
+    {
+        MensagensDeErro.Clear();
+
+        _filmes = await CarregarFilmesNaoAlugados();
+        _clientes = await CarregarTodosClientes();
+
+        _locacaoSelecionada = new LocacaoDto() { Id = null, DataLocacao = DateTime.Today, DataDevolucao = null };
+        _status = FormStatus.Inclusão;
+    }
+
+    async Task AtivarAlteracao(int? idLocacao)
+    {
+        MensagensDeErro.Clear();
+
+        if (idLocacao is null)
+            return;
+
+        _filmes = await CarregarTodosFilmes();
+        _clientes = await CarregarTodosClientes();
+
+        LocacaoDto? LocacaoAlteracao = _locacoes?.FirstOrDefault(x => x.Id == idLocacao);
+
+        if (LocacaoAlteracao is not null)
+        {
+            _locacaoSelecionada = new LocacaoDto() { Id = null, DataLocacao = DateTime.Today };
+            InstanceCopy.Copy(LocacaoAlteracao, _locacaoSelecionada);
+            _status = FormStatus.Alteração;
+        }
+
+    }
+
+    void CancelarInclusaoOuAlteracao()
+    {
+        MensagensDeErro.Clear();
+
+        _status = FormStatus.Lista;
+        _locacaoSelecionada = null;
+    }
+
+    async Task Salvar()
+    {
+        if (_status == FormStatus.Inclusão && _locacaoSelecionada is not null)
+        {
+            await Incluir();
+        }
+        else if (_status == FormStatus.Alteração && _locacaoSelecionada is not null)
+        {
+            await Alterar();
+        }
+    }
+
+    async Task Incluir()
+    {
+        MensagensDeErro.Clear();
+
+        try
+        {
+            HttpResponseMessage response = await Http.PostAsJsonAsync<LocacaoDto>("api/Locacao", _locacaoSelecionada);
+            Result<LocacaoDto>? result = response?.Content?.ReadFromJsonAsync<Result<LocacaoDto>>().Result;
+
+            if (result?.Success ?? false)
+            {
+                if (result.HasValue)
+                {
+                    _locacoes?.Add(result.Value);
+                }
+                _status = FormStatus.Lista;
+                _locacaoSelecionada = null;
+            }
+            else
+            {
+                MensagensDeErro.Add(result?.Errors?.FirstOrDefault());
+
+            }
+        }
+        catch (Exception ex)
+        {
+            MensagensDeErro.Add(ex.Message);
+        }
+    }
+
+    async Task Alterar()
+    {
+        MensagensDeErro.Clear();
+
+        try
+        {
+            HttpResponseMessage response = await Http.PutAsJsonAsync<LocacaoDto>($"api/Locacao/{_locacaoSelecionada.Id}", _locacaoSelecionada);
+            Result<LocacaoDto>? result = response?.Content?.ReadFromJsonAsync<Result<LocacaoDto>>().Result;
+
+            if (result?.Success ?? false)
+            {
+                if (result.HasValue)
+                {
+                    //int indexOfSelecionado = _Locacaos.IndexOf(_LocacaoSelecionado);
+                    //_Locacaos.RemoveAt(indexOfSelecionado);
+                    //_Locacaos.Insert(indexOfSelecionado, result.Value);
+
+                    _locacoes.Replace(result.Value, x => x.Id == _locacaoSelecionada.Id);
+                }
+
+                _status = FormStatus.Lista;
+                _locacaoSelecionada = null;
+            }
+            else
+            {
+                MensagensDeErro.Add(result?.Errors?.FirstOrDefault());
+            }
+        }
+        catch (Exception ex)
+        {
+
+            MensagensDeErro.Add(ex.Message);
+        }
+    }
+
+    async Task Excluir(int? idLocacao)
+    {
+        MensagensDeErro.Clear();
+
+        try
+        {
+            HttpResponseMessage response = await Http.DeleteAsync($"api/Locacao/{idLocacao}");
+            Result<LocacaoDto>? result = response?.Content?.ReadFromJsonAsync<Result<LocacaoDto>>().Result;
+
+            if (result?.Success ?? false)
+            {
+                if (result.HasValue)
+                {
+                    _locacoes.Remove(x => x.Id == result.Value.Id);
+                }
+
+                _status = FormStatus.Lista;
+                _locacaoSelecionada = null;
+            }
+            else
+            {
+                MensagensDeErro.Add(result?.Errors?.FirstOrDefault());
+            }
+        }
+        catch (Exception ex)
+        {
+            MensagensDeErro.Add(ex.Message);
+        }
+    }
+
+    async Task Devolver(int? idFilme)
+    {
+        MensagensDeErro.Clear();
+
+        try
+        {
+            HttpResponseMessage response = await Http.PutAsJsonAsync<LocacaoDto>($"api/Locacao/devolver_filme/{idFilme}", new LocacaoDto());
+            Result<LocacaoDto>? result = response?.Content?.ReadFromJsonAsync<Result<LocacaoDto>>().Result;
+
+            //Result<LocacaoDto>? result = await Http.GetFromJsonAsync<Result<LocacaoDto>>($"api/Locacao/devolver_filme/{idFilme}");
+            //Result<LocacaoDto>? result = response?.Content?.ReadFromJsonAsync<Result<LocacaoDto>>().Result;
+
+            if (result?.Success ?? false)
+            {
+                if (result.HasValue)
+                {
+                    _locacoes.Replace(result.Value, x => x.Id == result.Value.Id);
+                }
+            }
+            else
+            {
+                MensagensDeErro.Add(result?.Errors?.FirstOrDefault());
+            }
+        }
+        catch (Exception ex)
+        {
+            MensagensDeErro.Add(ex.Message);
+        }
+
+        StateHasChanged();
+    }
+
+    async Task Pesquisar()
+    {
+        MensagensDeErro.Clear();
+        _status = FormStatus.Processando;
+        _locacoes = await CarregarTodasLocacoes();
+        _status = FormStatus.Lista;
+    }
+
+    async Task<List<LocacaoDto>?> CarregarTodasLocacoes()
+    {
+        return (await Http.GetFromJsonAsync<LocacaoDto[]>("api/Locacao")).ToList();
+    }
+
+    async Task<List<FilmeDto>?> CarregarTodosFilmes()
+    {
+        return (await Http.GetFromJsonAsync<FilmeDto[]>("api/Locacao/filmes")).ToList();
+    }
+
+    async Task<List<FilmeDto>?> CarregarFilmesNaoAlugados()
+    {
+        return (await Http.GetFromJsonAsync<FilmeDto[]>("api/Locacao/filmes_nao_alugados")).ToList();
+    }
+
+    async Task<List<ClienteDto>?> CarregarTodosClientes()
+    {
+        return (await Http.GetFromJsonAsync<ClienteDto[]>("api/Locacao/clientes")).ToList();
+    }
+
+
+
+
+
+
+}

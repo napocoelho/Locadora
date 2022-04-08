@@ -1,0 +1,54 @@
+﻿@page "/relatorios"
+
+@inject HttpClient Http
+
+
+<h3>Relatorios</h3>
+<hr />
+
+
+
+<ul class="list-group">
+    <li class="list-group-item">
+        <a href="/api/relatorio/clientes_em_atraso_na_devolucao.xls" class="link link-primary">Clientes em atraso na devolução</a>
+    </li>
+    <li class="list-group-item">
+        <a href="/api/relatorio/cinco_filmes_mais_alugados.xls" class="link link-primary">Cinco filmes mais alugados</a>
+    </li>
+    <li class="list-group-item">
+        <a href="/api/relatorio/filmes_nunca_alugados.xls" class="link link-primary">Filmes nunca alugados</a>
+    </li>
+    <li class="list-group-item">
+        <a href="/api/relatorio/segundo_cliente_que_mais_alugou.xls" class="link link-primary">Segundo cliente que mais alugou</a>
+    </li>
+    <li class="list-group-item">
+        <a href="/api/relatorio/tres_filmes_menos_alugados.xls" class="link link-primary">Três filmes menos alugados</a>
+    </li>
+</ul>
+
+
+
+
+
+
+
+@code
+{
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        try
+        {
+
+        }
+        catch (Exception ex)
+        {
+            //MensagensDeErro.Add(ex.Message);
+        }
+
+        //_status = FormStatus.Lista;
+    }
+
+}

@@ -1,0 +1,423 @@
+﻿@page "/filme"
+
+@using Locadora.Client.Utils
+@using Locadora.Shared.DTOs
+@using Locadora.Shared.Utils
+
+@inject HttpClient Http
+
+<h3>Filme</h3>
+<hr />
+
+@if (_status == FormStatus.Processando)
+{
+    <p>
+        Carregando...
+    </p>
+}
+else if (_status == FormStatus.Lista)
+{
+    @*table-secondary table-hover table-striped table-sm table-bordered table-responsive-sm*@
+
+
+
+
+
+
+
+    <table class="table  table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <td>Id</td>
+                <td>Título</td>
+                <td>Classificação</td>
+                <td>Lançamento</td>
+                <td></td>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (FilmeDto filme in _filmes ?? Enumerable.Empty<FilmeDto>())
+            {
+                <tr>
+                    <td>@filme.Id</td>
+                    <td>@filme.Titulo</td>
+                    <td>@filme.ClassificacaoIndicativa</td>
+                    <td><input type="checkbox" disabled=@true checked=@filme.Lancamento /></td>
+                    <td>
+                        <button class="btn btn-primary" @onclick=@(()=>AtivarAlteracao(filme.Id))>Alterar</button>
+                        <button class="btn btn-primary" @onclick=@(()=>Excluir(filme.Id))>Excluir</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+        </tfoot>
+    </table>
+
+    
+
+
+    <button class="btn btn-primary" @onclick=@AtivarInclusao>Incluir</button>
+    <button class="btn btn-primary" @onclick=@Pesquisar>Pesquisar</button>
+
+    <br />
+    <br />
+
+    <!-- Exibe botão de importar CSV -->
+    <div>
+        Importar arquivo CSV: <br/>
+        <InputFile class="btn btn-primary" OnChange=@UploadArquivoCsv />
+    </div>
+
+    <br />
+
+
+
+
+
+
+
+    <hr />
+
+}
+else if (_status == FormStatus.Inclusão
+     || _status == FormStatus.Alteração)
+{
+    <EditForm Model="@_filmeSelecionado" OnValidSubmit=@Salvar>
+
+
+        <div class="container">
+
+            @if (_status == FormStatus.Alteração)
+            {
+                <div class="row">
+                    <div class="col-2">
+                        <label for="Id">Id: </label>
+                    </div>
+
+                    <div class="col-sm">
+                        <input id="id" disabled=@true @bind-value=@_filmeSelecionado.Id />
+                    </div>
+                </div>
+            }
+
+            <div class="row">
+                <div class="col-2">
+                    <label for="Titulo">Título:</label>
+                </div>
+
+                <div class="col-sm">
+                    <InputText id="titulo" @bind-Value=@_filmeSelecionado.Titulo DisplayName="Nome" />
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-2">
+                    <label for="Classificacao">Classificação:</label>
+                </div>
+
+                <div class="col-sm">
+                    <InputNumber id="classificacao" @bind-Value=@_filmeSelecionado.ClassificacaoIndicativa />
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-2">
+                    <label for="Lancamento">Lançamento:</label>
+                </div>
+
+                <div class="col-sm">
+                    <InputCheckbox id="lancamento" @bind-Value=@_filmeSelecionado.Lancamento />
+                    @*<input id="lancamento" disabled=@true type="checkbox" checked=@_filmeSelecionado.Lancamento data-toggle="toggle">*@
+                </div>
+            </div>
+
+            <br />
+
+            <div class="row justify-content-start">
+                <div class="col-1">
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+
+                <div class="col-4">
+                    <button type="button" class="btn btn-primary" @onclick=@CancelarInclusaoOuAlteracao>Cancelar</button>
+                </div>
+            </div>
+
+
+        </div>
+
+    </EditForm>
+
+
+    <hr />
+
+
+}
+
+
+
+<!-- Exibe mensagens de erro -->
+@foreach (string mensagem in MensagensDeErro ?? Enumerable.Empty<string>())
+{
+    <div class="alert alert-danger" role="alert">
+        @mensagem
+    </div>
+
+    <hr />
+}
+
+
+
+
+@code
+{
+    enum FormStatus
+    {
+        Inclusão,
+        Alteração,
+        Processando,
+        Lista
+    }
+
+    List<FilmeDto>? _filmes = null;
+    FilmeDto? _filmeSelecionado;
+    FormStatus _status = FormStatus.Processando;
+    List<string> MensagensDeErro { get; init; } = new List<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        try
+        {
+            _filmes = await CarregarTodosFilmes();
+        }
+        catch (Exception ex)
+        {
+            MensagensDeErro.Add(ex.Message);
+        }
+
+        _status = FormStatus.Lista;
+    }
+
+    void AtivarInclusao()
+    {
+        MensagensDeErro.Clear();
+
+        _filmeSelecionado = new FilmeDto() { Id = null, Titulo = "", ClassificacaoIndicativa = 0, Lancamento = false };
+        _status = FormStatus.Inclusão;
+    }
+
+    void AtivarAlteracao(int? idFilme)
+    {
+        MensagensDeErro.Clear();
+
+        if (idFilme is null)
+            return;
+
+        FilmeDto? filmeAlteracao = _filmes?.FirstOrDefault(x => x.Id == idFilme);
+
+        if (filmeAlteracao is not null)
+        {
+            _filmeSelecionado = new FilmeDto();
+            InstanceCopy.Copy(filmeAlteracao, _filmeSelecionado);
+            _status = FormStatus.Alteração;
+        }
+
+    }
+
+    void CancelarInclusaoOuAlteracao()
+    {
+        MensagensDeErro.Clear();
+
+        _status = FormStatus.Lista;
+        _filmeSelecionado = null;
+    }
+
+    async Task Salvar()
+    {
+        if (_status == FormStatus.Inclusão && _filmeSelecionado is not null)
+        {
+            await Incluir();
+        }
+        else if (_status == FormStatus.Alteração && _filmeSelecionado is not null)
+        {
+            await Alterar();
+        }
+    }
+
+    async Task Incluir()
+    {
+        MensagensDeErro.Clear();
+
+        try
+        {
+            HttpResponseMessage response = await Http.PostAsJsonAsync<FilmeDto>("api/Filme", _filmeSelecionado);
+            Result<FilmeDto>? result = response?.Content?.ReadFromJsonAsync<Result<FilmeDto>>().Result;
+
+            if (result?.Success ?? false)
+            {
+                if (result.HasValue)
+                {
+                    _filmes?.Add(result.Value);
+                }
+                _status = FormStatus.Lista;
+                _filmeSelecionado = null;
+            }
+            else
+            {
+                MensagensDeErro.Add(result?.Errors?.FirstOrDefault());
+
+            }
+        }
+        catch (Exception ex)
+        {
+            MensagensDeErro.Add(ex.Message);
+        }
+    }
+
+    async Task Alterar()
+    {
+        MensagensDeErro.Clear();
+
+        try
+        {
+            HttpResponseMessage response = await Http.PutAsJsonAsync<FilmeDto>($"api/Filme/{_filmeSelecionado.Id}", _filmeSelecionado);
+            Result<FilmeDto>? result = response?.Content?.ReadFromJsonAsync<Result<FilmeDto>>().Result;
+
+            if (result?.Success ?? false)
+            {
+                if (result.HasValue)
+                {
+                    //int indexOfSelecionado = _Filmes.IndexOf(_FilmeSelecionado);
+                    //_Filmes.RemoveAt(indexOfSelecionado);
+                    //_Filmes.Insert(indexOfSelecionado, result.Value);
+
+                    _filmes.Replace(result.Value, x => x.Id == _filmeSelecionado.Id);
+                }
+
+                _status = FormStatus.Lista;
+                _filmeSelecionado = null;
+            }
+            else
+            {
+                MensagensDeErro.Add(result?.Errors?.FirstOrDefault());
+            }
+        }
+        catch (Exception ex)
+        {
+
+            MensagensDeErro.Add(ex.Message);
+        }
+    }
+
+    async Task Excluir(int? idFilme)
+    {
+        MensagensDeErro.Clear();
+
+        try
+        {
+            HttpResponseMessage response = await Http.DeleteAsync($"api/Filme/{idFilme}");
+            Result<FilmeDto>? result = response?.Content?.ReadFromJsonAsync<Result<FilmeDto>>().Result;
+
+            if (result?.Success ?? false)
+            {
+                if (result.HasValue)
+                {
+                    _filmes.Remove(x => x.Id == result.Value.Id);
+                }
+
+                _status = FormStatus.Lista;
+                _filmeSelecionado = null;
+            }
+            else
+            {
+                MensagensDeErro.Add(result?.Errors?.FirstOrDefault());
+            }
+        }
+        catch (Exception ex)
+        {
+            MensagensDeErro.Add(ex.Message);
+        }
+    }
+
+    async Task Pesquisar()
+    {
+        MensagensDeErro.Clear();
+        _status = FormStatus.Processando;
+        _filmes = await CarregarTodosFilmes();
+        _status = FormStatus.Lista;
+    }
+
+    async Task<List<FilmeDto>?> CarregarTodosFilmes()
+    {
+        return (await Http.GetFromJsonAsync<FilmeDto[]>("api/Filme")).ToList();
+    }
+
+
+
+
+    async Task UploadArquivoCsv(InputFileChangeEventArgs e)
+    {
+        MensagensDeErro.Clear();
+
+        long maxFileSize = 1024 * 200;
+
+        try
+        {
+            if (e.File.ContentType != "text/csv")
+            {
+                throw new Exception("O ContentType do arquivo deve ser do tipo 'text/csv'");
+            }
+
+            if (e.File.Size > maxFileSize)
+            {
+                throw new Exception($"O arquivo não pode exceder {maxFileSize}bytes");
+            }
+
+
+            FileContentDto fileContent = new();
+            fileContent.ContentType = e.File.ContentType;
+            fileContent.Content = await new StreamContent(e.File.OpenReadStream(maxFileSize)).ReadAsStringAsync();
+
+            HttpResponseMessage response = await Http.PostAsJsonAsync<FileContentDto>("api/Filme/importar_csv", fileContent);
+            Result<ItemDeImportacaoCsvDto[]>? result = response?.Content?.ReadFromJsonAsync<Result<ItemDeImportacaoCsvDto[]>>().Result;
+
+            if (result is null)
+            {
+                throw new Exception("Houve um problema na comunicação com o servidor! Tente novamente.");
+            }
+
+            if (result.HasValue)
+            {
+                foreach (ItemDeImportacaoCsvDto itemDeImportacao in result.Value.Where(x => x.Erro is null && x.Filme is not null) ?? Enumerable.Empty<ItemDeImportacaoCsvDto>())
+                {
+                    if (_filmes.Any(x => x.Id == itemDeImportacao.Filme.Id))
+                    {
+                        _filmes.Replace(itemDeImportacao.Filme, x => x.Id == itemDeImportacao.Filme.Id);
+                    }
+                    else
+                    {
+                        _filmes.Add(itemDeImportacao.Filme);
+                    }
+                }
+            }
+
+            foreach (ItemDeImportacaoCsvDto itemDeImportacao in result.Value.Where(x => x.Erro is not null) ?? Enumerable.Empty<ItemDeImportacaoCsvDto>())
+            {
+                MensagensDeErro.Add(itemDeImportacao.Erro);
+            }
+
+
+        }
+        catch (Exception ex)
+        {
+            MensagensDeErro.Add(ex.Message);
+        }
+
+
+    }
+
+
+}
