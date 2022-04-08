@@ -52,12 +52,3 @@ create table if not exists Locacao
     FOREIGN KEY (Id_Cliente) REFERENCES Cliente(Id),
     FOREIGN KEY (Id_Filme) REFERENCES Filme(Id)
 );
-
-
-
-insert into Cliente (Nome, Cpf, DataNascimento) values('Junio Coelho', '00000000000', '1982/11/09');
-insert into Cliente (Nome, Cpf, DataNascimento) values('Maurício Coelho', '11111111111', '1973/9/23');
-insert into Filme (Titulo, ClassificacaoIndicativa, Lancamento) values('xxxxxxxxx', 10, 1);
-
-select * from Cliente;
-select * from Filme;
